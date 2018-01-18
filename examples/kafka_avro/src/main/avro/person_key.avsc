@@ -1,0 +1,8 @@
+{
+    "namespace": "com.damonallison.kafka.test.model",
+    "type": "record",
+    "name": "PersonKey",
+    "fields": [
+        {"name": "id", "type": "int", "doc" : "The unique id."}
+    ]
+}

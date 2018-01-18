@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Properties;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -16,12 +17,17 @@ public class ShakespeareProducer {
     /**
      * Reads in every line of the input file and sends it with a KafkaProducer
      */
-    private final static String INPUT_PATH_NAME = "/home/training/developer/datasets/shakespeare";
+    private final String inputPathName;
+
+    public ShakespeareProducer() {
+        inputPathName = Paths.get(System.getProperty("user.dir"), "../datasets/shakespeare").normalize().toString();
+        System.out.println("Input directory: " + inputPathName);
+    }
 
     public void runProducer() throws IOException {
         KafkaProducer<String, String> producer = createProducer();
 
-        File inputFile = new File (INPUT_PATH_NAME);
+        File inputFile = new File (inputPathName);
         if (inputFile.isDirectory()) {
             // If a directory, iterate through all files
             for (File fileInDirectory : inputFile.listFiles()) {
@@ -62,7 +68,7 @@ public class ShakespeareProducer {
      */
     private KafkaProducer<String, String> createProducer() {
         Properties props = new Properties();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "broker101:9092");
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092,localhost:9093");
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
 
@@ -71,6 +77,8 @@ public class ShakespeareProducer {
     }
 
     public static void main(String[] args) {
+
+        System.out.println("Current working directory: " + System.getProperty("user.dir"));
 
         try {
             ShakespeareProducer helloProducer = new ShakespeareProducer();

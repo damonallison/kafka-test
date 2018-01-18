@@ -1,0 +1,9 @@
+{
+    "namespace": "com.damonallison.kafka.test.model",
+    "type": "record",
+    "name": "Person",
+    "fields": [
+        {"name": "first_name", "type": "string", "doc" : "First name"},
+        {"name": "last_name", "type": "string", "doc" : "Last name"}
+    ]
+}

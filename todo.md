@@ -1,5 +1,15 @@
 # TODO
 
+* Review broker configuration.
+    * Prohibit auto topic creation.
+    * Default partition count / replication factor.
+
+* Review producer configuration.
+    * EOS (Acks == all)
+
+
+
+
 * Write a producer / consumer which guarantees EOS.
     * Avro messaging.
     * Consumer : the ability to `reset` via console command.
