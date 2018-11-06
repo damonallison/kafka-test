@@ -2,6 +2,18 @@
 
 This repository contains documentation and example scripts for working with [Apache Kafka](https://kafka.apache.org/).
 
+* Write a Kafka backed "drone".
+  * Able to scale up/down on demand.
+  * Ensures consumer group naming uniqueness.
+* Infrastructure topology strategy?
+	* How many partitions per broker?
+	* Can a partitions move between brokers?
+* Naming conventions?
+	* Topics
+	* Consumer groups
+
+---
+
 ## Introduction
 
 Kafka is a distributed streaming platform. Kafka stores streams of records, called topics, in a fault tolerant, scalable way. Clients can read historical records as well as stream events in real time.
@@ -21,30 +33,48 @@ Kafka improves on the queuing and pub/sub systems by:
 * To effeciently and quickly distribute data between systems.
 * Simplify system-system communication. Avoid API callback hell.
 
-* As a messaging system.
-    * Consumers can be scaled as a group.
-        * Each message is delivered once per group, not per listener.
-    * Maintains an ordered historical record.
-        * Ordering is lost in traditional queuing systems, as messages are delivered async to consumers.
-        * Consumers can reply past messages.
+#### Messaging
+
+Kafka has many advantages over traditional queuing anad pub/sub systems.
+
+* Compared to queues
+  * In a queue, each message goes to one listener.
+  * Once a message is read from the queue, it can't be read again.
+* Compared to pub sub
+  * In pub sub, all listeners receive a message.
+  * Listeners must process *all* messages.  You can't scale clients.
+
+#### Streaming
+
+* Use kafka s a stream processor.
+  * You can build a stream of streams to control data flow.
+  * Example : use the Streams API to compute aggregations from 2 streams of activity, publishing the results to a new stream.
+
+#### Scaling
+
+* Consumers can be scaled as a group.
+  * Each message is delivered once per group, not per listener.
+
+* Handles streaming real-time data *and* batch systems that need to process data on a fixed interval.
 
 * As a storage system.
-    * Kafka stores records with a fast, constant performance regardless of partition size.
-    * Guaranteed delivery.
+  * Kafka stores records with a fast, constant performance regardless of partition size.
+  * Guaranteed delivery.
 
-* As a stream processor.
-    * You can build a stream of streams to control data flow.
-    * Example : use the Streams API to compute aggregations from stream activity, publishing the results to a new stream.
+* Ordering is lost in traditional queuing systems, as messages are delivered
+  async to consumers. With Kafka, each consumer group receives messages per
+  partition *in order*.
 
+---
 
-### Architecture
+## Architecture
 
 * Design motivations for Kafka.
-    * High throughput to support web scale log streams.
-    * Support backlogs to support ETL, bursting data in / out.
-    * Low latency message delivery to replace RabbitMQ / messaging systems.
-    * Streaming.
-    * Fault tolerant.
+  * High throughput to support web scale log streams.
+  * Support backlogs to support ETL, bursting data in / out.
+  * Low latency message delivery to replace RabbitMQ / messaging systems.
+  * Provide streaming capabilities.
+  * Fault tolerant.
 
 
 ## Core APIs
@@ -55,65 +85,79 @@ Kafka improves on the queuing and pub/sub systems by:
 * Connector API. Infrastructure for building / running reusable producers or consumers that connect topics to existing systems. For example, a Postgres connector which captures every change to a DB.
 
 
-## Kafka Design
+## Kafka Components
 
-* Cluster
-    * The top level entity of a kafka installation.
-    * Each topic partition has a "leader" broker within a cluster. All partition I/O occurs with the leader.
-    * The cluster manager (zookeeper?) is responsible for managing the leader, selecting a new leader when the current leader dies.
+### Cluster
 
-* Broker
-    * Unique "server" node within a cluster.
+* The top level entity of a kafka installation.
+* A cluster contains 1-n brokers (servers).
+* Each topic partition has a "leader" broker within a cluster. All partition I/O occurs with the leader.
+* The cluster manager (zookeeper?) is responsible for managing the leader, selecting a new leader when the current leader dies.
 
-* Topic
-    * Message log.
+### Broker
 
-* Partition
-    * Each topic is broken into 1-n partitions.
-    * Each partition is ordered only within its partition.
-    * Partitions provide scale out.
-        * Each partition must fit on the servers that host it.
-    * Partitions provide parallelism.
-        * Each partition is processed by one consumer per consumer group.
-    * Partitions are replicated across N servers for fault tolerance.
-    * If you need total message ordering, you must only have 1 partition.
-        * This will also mean only 1 consumer process per consumer group.
+* Unique "server" node within a cluster.
 
-* Producer
-    * Publish data to topics.
-    * Producers determine which partition to send each record.
-        * i.e., Publish to topic based on round robin, or data element within the record.
-        * If data must be ordered, it must be on the same partition.
+### Topic
+
+* Message log.
+
+#### Log (Topic) Compaction
+
+* Simple log compaction happens by date. All data occurring before a fixed date (say 20 days) is deleted.
+* A better compaction is key based. The last log message for each key is retained.
+
+### Partition
+
+* Each topic is broken into 1-n partitions.
+* Messages in a partition are ordered.
+* Partitions provide scale out.
+* Each partition must fit on the servers that host it.
+
+* Partitions provide parallelism.
+  * Each partition is processed by one consumer per consumer group.
+
+* Partitions provide replication.
+  * Partitions are replicated across N servers for fault tolerance.
+  * Each partition has a leader broker. All read / writes go to the leader.
+  * Partition leaders are distributed evenly among brokers
+
+* If you need total message ordering across all messages, you must only have 1 partition.
+  * This will also mean only 1 consumer process per consumer group.
+
+Think thru your partitioning strategy early. If you partition by key, you can't
+change your partitioning strategy and guarantee ordering by key.
+
+Partitions are the degree of parallelism. You can't have more consumers per
+group than the number of partitions.
+
+### Producer
+
+* Publish data to topics.
+* Producers determine which partition to send each record.
+* i.e., Publish to topic based on round robin, or data element within the record.
+* If data must be ordered, it must be on the same partition.
 
 * Message Delivery Semantics
-    * Message commitment.
-        * Kafka supports an idempotent message delivery option (EoS == Exactly Once Semantics).
-            * The producer attaches an identifier to each message.
-            * Kafka guarantees the message is only committed to the log once.
-        * Producers can publish messages with two delivery semantics
-            * Wait for delivery commit confirmation (10 ms)
-            * Send completely async, only wait until the leader has the message.
-    * Kafka guarantees a committed message will not be lost as long as there is one in-sync replica at all times.
-        * Committed message == all ISRs have applied the message to the log.
+  * EOS: Exactly Once Semantics
+    * The producer attaches an identifier to each message.
+    * Kafka guarantees the message is only committed to the log once.
+  * Commit confirmation
+    * In this delivery method, the producer waits until delivery is confirmed by all ISRs (In-Sync Relicas).
+    * Slower, but safer.
+  * Async
+    * Send completely async, only wait until the leader has the message.
 
+### Quotas
 
-* Replication
-    * The partition is the unit of replication.
-    * Each partition has a leader. All read / writes go to the leader.
-    * When partitions > brokers (typical case), leaders are distributed among brokers.
+* Prevent DDoS.
+* Network based quotas - byte rate thresholds.
+* Request based quotas - CPU utilization of network and I/O threads.
+* Quotas are enabled per client group, per server (broker).
+* The server (broker) sliently slows down the client by delaying responses.
+  * By slowing down the response, the client does not need to implement backoff strategies.
 
-* Log compaction
-    * Simple log compaction happens by date. All data occurring before a fixed date (say 20 days) is deleted.
-    * A better compaction is key based. The last log message for each key is retained.
-
-* Quotas
-    * Prevent DDoS.
-    * Network based quotas - byte rate thresholds.
-    * Request reate quotas - CPU utilization of network and I/O threads.
-    * Quotas are enabled per client group, per server (broker).
-    * The server (broker) sliently slows down the client by delaying responses.
-        * By slowing down the response, the client does not need to implement backoff strategies.
-
+---
 
 ## Implementation
 
@@ -141,18 +185,19 @@ Kafka improves on the queuing and pub/sub systems by:
     * Each partition is stored with the format `topic_name-[partition]` i.e., `damon-0` for partition 0 of `damon` topic.
 
 * Determine partition count.
-    * Each partition must fit completely on a single machine.
-    * Partitions determine the degree of parallelism.
-        * The maximum number of concurrent consumers cannot be greater than the partition size.
-    * You can repartition after creation.
-        * Existing data does not move. Therefore partitions relying on hashes may not work.
-        * Warning : if a topic that has a key, ordering will be affected.
-        * You cannot reduce the number of partitions for a tpoic. (future plans perhaps)
+  * Each partition must fit completely on a single machine.
+  * Partitions determine the degree of parallelism.
+    * The maximum number of concurrent consumers in a consumer group cannot be
+      greater than the partition size.
+  * You can repartition after creation.
+    * Existing data does not move. Therefore partitions relying on hashes may not work.
+    * Warning : if a topic that has a key, ordering will be affected.
+    * You cannot reduce the number of partitions for a tpoic. (future plans perhaps)
 
 
 ## Brokers
 
-```
+```java
 //
 // Do *not* allow topics to be auto-created.
 // Prevents configuration bugs, ability to track topic creation and ownership.
@@ -172,7 +217,7 @@ delete.topic.enable=true
 
 * Schema Registry
 
-```
+```java
 props.put(KafkaAvroDeserializerConfig.SPECFIC_AVRO_READER_CONFIG, "true");`
 props.put(KafkaAvroDeserializerConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://schemaregistry1:8081");
 ```
@@ -259,75 +304,7 @@ auto.offset.reset=earliest
 
 ```
 
-[Confluent - Kafka Consumers](https://docs.confluent.io/current/clients/consumer.html)
 
-* For each consumer group, each partition has a read offset. Each consumer must periodically persist their offsets.
-* New consumers, when assigned partitions to read, will start from the persisted offset.
-
-
-
-## Streams API
-
-
------
-
-# Kafka Quickstart
-
-```
-
-# Important directories
-
-## Binary shell wrappers
-/usr/local/bin/kafka-*
-
-## Configuration Files
-/usr/local/etc/kafka
-
-## Main Kafka directory
-/usr/local/Cellar/kafka/0.11.0.1
-
-## Logs directory
-/usr/local/var/lib/kafka-logs
-
-
-# Start zookeeper
-$ zookeeper-server-start /usr/local/etc/kafka/zookeeper.properties
-
-# Start kafka
-
-## Broker id=100 port=9092
-$ kafka-server-start /usr/local/etc/kafka/server.100.properties
-
-## Broker id=101 port=9093
-$ kafka-server-start /usr/local/etc/kafka/server.101.properties
-
-# List topics
-$ kafka-topics --list --zookeeper localhost:2181
-
-# Create a topic
-$ kafka-topics --create --zookeeper localhost:2181 --if-not-exists --replication-factor 2 --partitions 1 --topic test
-
-# Describe a topic (replication factor)
-$ kafka-topics --zookeeper localhost:2181 --describe --topic com.damonallison.test
-
-# Delete
-$ kafka-topics --zookeeper localhost:2818 --delete --topic com.damonallison.test
-
-
-# Start a console producer
-$ kafka-console-producer --broker-list localhost:9092 --topic test
-
-# Start a console consumer
-$ kafka-console-consumer --broker-list localhost:9092 --topic test
-
-# List Consumer Groups
-$ kafka-consumer-groups --bootstrap-server localhost:9092 --list
-
-# An example Kafka Connect file connector.
-# Reads from a source file (test.txt) writes to a sink (listener) file ()
-$ connect-standalone connect-standalone.properties connect-file-source.properties connect-file-sink.properties
-
-```
 
 ## Confluent Recommendations
 
