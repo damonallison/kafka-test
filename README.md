@@ -16,16 +16,23 @@ This repository contains documentation and example scripts for working with [Apa
 
 ## Introduction
 
-Kafka is a distributed streaming platform. Kafka stores streams of records, called topics, in a fault tolerant, scalable way. Clients can read historical records as well as stream events in real time.
+Kafka is a distributed streaming platform. Kafka stores streams of records,
+called topics, in a fault tolerant, scalable way. Clients can read historical
+records as well as stream events in real time.
 
 Kafka is superior to traditional messaging systems in that:
 
-* Like with queues, messages can be stored and delivered to 1 of N clients.
-* Like with pub/sub systems, messages can be broadcasted to multiple subscribers.
+* Like with queues, messages can be stored and delivered to 1 of `n` clients.
+  For example, each message is delivered to 1 of 20 running consumer instances.
+
+* Like with pub/sub systems, messages can be broadcasted to multiple
+  subscribers. Multiple subscribers can listen to the same topic.
 
 Kafka improves on the queuing and pub/sub systems by:
 
-* Allowing messages to be delivered to 1 of N clients in consumer groups. In traditional queuing / pub/sub, each subscriber receives each message. There is no concept of `client group`.
+* Allowing messages to be delivered to 1 of N clients in consumer groups. In
+  traditional queuing / pub/sub, each subscriber receives each message. There is
+  no concept of `client group`.
 * Durable storage provides playback, historical resume.
 
 ### Why Use Kafka?
@@ -46,7 +53,7 @@ Kafka has many advantages over traditional queuing anad pub/sub systems.
 
 #### Streaming
 
-* Use kafka s a stream processor.
+* Stream processing allows you to combine, transform, and generally process streams.
   * You can build a stream of streams to control data flow.
   * Example : use the Streams API to compute aggregations from 2 streams of activity, publishing the results to a new stream.
 
@@ -75,7 +82,6 @@ Kafka has many advantages over traditional queuing anad pub/sub systems.
   * Low latency message delivery to replace RabbitMQ / messaging systems.
   * Provide streaming capabilities.
   * Fault tolerant.
-
 
 ## Core APIs
 
@@ -111,7 +117,6 @@ Kafka has many advantages over traditional queuing anad pub/sub systems.
 
 * Each topic is broken into 1-n partitions.
 * Messages in a partition are ordered.
-* Partitions provide scale out.
 * Each partition must fit on the servers that host it.
 
 * Partitions provide parallelism.
@@ -120,7 +125,7 @@ Kafka has many advantages over traditional queuing anad pub/sub systems.
 * Partitions provide replication.
   * Partitions are replicated across N servers for fault tolerance.
   * Each partition has a leader broker. All read / writes go to the leader.
-  * Partition leaders are distributed evenly among brokers
+  * Partition leaders are distributed evenly among brokers.
 
 * If you need total message ordering across all messages, you must only have 1 partition.
   * This will also mean only 1 consumer process per consumer group.
@@ -192,8 +197,7 @@ group than the number of partitions.
   * You can repartition after creation.
     * Existing data does not move. Therefore partitions relying on hashes may not work.
     * Warning : if a topic that has a key, ordering will be affected.
-    * You cannot reduce the number of partitions for a tpoic. (future plans perhaps)
-
+    * You cannot reduce the number of partitions for a topic. (future plans perhaps)
 
 ## Brokers
 
@@ -255,7 +259,7 @@ props.put(KafkaAvroDeserializerConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://schema
 
 Important configuration
 
-```
+```java
 //
 // The only true required setting.
 // The bootstrap server is used *only* for bootstrapping
@@ -303,8 +307,6 @@ auto.commit.interval.ms=5000
 auto.offset.reset=earliest
 
 ```
-
-
 
 ## Confluent Recommendations
 
